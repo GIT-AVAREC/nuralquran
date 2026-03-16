@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Нур аль-Коран: 3D Ultra Pro</title>
+    
+    <!-- Fonts (те же) -->
+    <link href="https://cdn.jsdelivr.net/npm/@fontsource/amiri@5.0.0/index.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.0/400.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.0/500.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fontsource/roboto@5.0.0/700.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        /* Все стили без изменений, только добавлены правила для touch */
+        :root {
+            --primary: #0f2922;
+            --primary-light: #1a4036;
+            --accent: #d4af37;
+            --accent-glow: #f3cf55;
+            --bg-glass: rgba(20, 35, 30, 0.85);
+            --text-gold: #f1dfa6;
+            --text-white: #f0fdf4;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #05100e;
+            font-family: 'Roboto', sans-serif;
+            color: var(--text-white);
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        /* Улучшения для MI Browser */
+        button, .nav-item, .word-span, .btn-gold, .input-gold, select, [onclick] {
+            touch-action: manipulation; /* отключаем двойной тап-зум */
+            -webkit-tap-highlight-color: transparent; /* убираем серый фон */
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+
+        /* Glassmorphism */
+        .glass-panel {
+            background: rgba(15, 23, 20, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            border-color: rgba(212, 175, 55, 0.4);
+        }
+
+        .arabic-text {
+            font-family: 'Scheherazade New', serif;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        .animate-float { animation: float 4s ease-in-out infinite; }
+
+        .nav-item {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .nav-item.active {
+            color: var(--accent);
+            text-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+        }
+        .nav-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--accent);
+            box-shadow: 0 -2px 10px var(--accent);
+        }
+
+        .btn-gold {
+            background: linear-gradient(135deg, var(--accent), #b89628);
+            color: #0f2922;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+            transition: all 0.2s;
+        }
+        .btn-gold:active { transform: scale(0.95); }
+
+        .input-gold {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            color: var(--text-white);
+        }
+        .input-gold:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+            outline: none;
+        }
+
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.3s ease-out; }
+        .modal-exit { opacity: 0; transform: scale(0.95); }
+        
+        .secret-footer {
+            opacity: 0.3;
+            font-size: 10px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        .secret-footer:hover { opacity: 1; color: var(--accent); }
+
+        .loader-ring {
+            border: 3px solid rgba(212, 175, 55, 0.3);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #word-popup {
+            background: rgba(15, 23, 20, 0.95);
+            border: 1px solid var(--accent);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+        }
+
+        /* Пустой класс для тёмной темы (чтобы не ломать код) */
+        .dark-theme { /* стили можно добавить позже */ }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- 3D Background (контейнер) -->
+    <div id="canvas-container"></div>
+
+    <div id="app" class="w-full max-w-md mx-auto h-screen flex flex-col relative overflow-hidden">
+        
+        <!-- Top Bar (без изменений) -->
+        <div id="topBar" class="absolute top-0 w-full z-50 transition-transform duration-300 ease-in-out">
+            <div class="h-40 relative flex flex-col justify-end p-5 bg-gradient-to-b from-transparent to-[#0f2922]">
+                <div class="absolute top-4 right-4 z-10">
+                    <a href="https://git-avarec.github.io/sav/" target="_blank" class="glass-panel px-4 py-1.5 rounded-full text-xs font-bold text-[var(--accent)] hover:bg-white/10 transition">
+                        🌐 САЙТ
+                    </a>
+                </div>
+                <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--accent)] to-white mb-1 drop-shadow-lg">Нур аль-Коран</h1>
+                <p class="text-xs text-gray-400 tracking-widest uppercase">Мудрость и Свет</p>
+            </div>
+
+            <!-- Navigation -->
+            <div class="glass-panel mx-4 rounded-2xl flex justify-between items-center p-1 mb-4 shadow-lg">
+                <div class="nav-item active flex-1 text-center py-3 text-sm font-medium cursor-pointer" onclick="switchTab('search')">🔍 Поиск</div>
+                <div class="nav-item flex-1 text-center py-3 text-sm font-medium cursor-pointer" onclick="switchTab('bookmarks')">🔖 Закладки</div>
+                <div class="nav-item flex-1 text-center py-3 text-sm font-medium cursor-pointer" onclick="switchTab('words')">💾 Слова</div>
+            </div>
+
+            <!-- Controls -->
+            <div id="search-controls" class="px-4 pb-4 space-y-3">
+                <div class="flex gap-2">
+                    <input type="text" id="search-input" class="input-gold flex-1 rounded-xl px-4 py-3 text-sm placeholder-gray-500" placeholder="2:255 или Аль-Бакара">
+                    <button class="btn-gold rounded-xl px-6 py-3 text-sm" onclick="performSearch()">НАЙТИ</button>
+                </div>
+                <select id="tafsir-select" class="input-gold w-full rounded-xl px-4 py-2 text-xs" onchange="changeTafsir()">
+                    <option value="ar.jalalayn">Тафсир Джалалайн</option>
+                    <option value="ar.mukhtasar">Тафсир Мухтасар</option>
+                    <option value="ar.saadi">Тафсир Ас-Саади</option>
+                    <option value="ar.kathir">Тафсир Ибн Касир</option>
+                    <option value="ar.qurtubi">Тафсир Аль-Куртуби</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="content" class="flex-1 overflow-y-auto pt-[280px] px-4 pb-20 scroll-smooth">
+            
+            <!-- Search Section -->
+            <div id="sec-search" class="section space-y-4">
+                <div class="flex justify-center py-10">
+                    <div class="loader-ring hidden" id="loader"></div>
+                </div>
+                <div id="results-container" class="space-y-4"></div>
+                <div id="empty-search" class="hidden flex flex-col items-center justify-center py-20 text-gray-500">
+                    <span class="text-6xl mb-4 opacity-50">📖</span>
+                    <p class="text-sm">Введите номер аята или название суры</p>
+                </div>
+            </div>
+
+            <!-- Bookmarks Section -->
+            <div id="sec-bookmarks" class="section hidden space-y-4">
+                <div id="bm-filter" class="flex flex-wrap gap-2 mb-4"></div>
+                <div id="bookmarks-list" class="space-y-3"></div>
+            </div>
+
+            <!-- Words Section -->
+            <div id="sec-words" class="section hidden space-y-4">
+                <div id="saved-words-list" class="space-y-3"></div>
+                <div id="empty-words" class="hidden flex flex-col items-center justify-center py-20 text-gray-500">
+                    <span class="text-6xl mb-4 opacity-50">📝</span>
+                    <p class="text-sm">Нет сохраненных слов</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fixed Footer -->
+        <div class="absolute bottom-2 w-full text-center z-40">
+            <div class="secret-footer text-gray-500" onclick="handleSecretFooterClick()">ANII329126</div>
+        </div>
+
+        <!-- Floating Word Popup -->
+        <div id="word-popup" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 w-[90%] max-w-sm rounded-2xl p-5 z-50 hidden flex-col items-center text-center transition-all duration-300 opacity-0 translate-y-4">
+            <span class="popup-ar text-3xl text-[var(--accent)] mb-2 font-bold" id="popup-ar-text"></span>
+            <span class="popup-ru text-sm text-gray-300 mb-4" id="popup-ru-text">...</span>
+            <div class="flex gap-2 w-full">
+                <button class="flex-1 bg-white/10 hover:bg-white/20 text-xs py-2 rounded-lg transition" onclick="saveCurrentWord()">💾 Сохранить</button>
+                <button class="flex-1 bg-red-500/20 hover:bg-red-500/40 text-xs py-2 rounded-lg transition" onclick="hidePopup()">✕ Закрыть</button>
+            </div>
+        </div>
+
+        <!-- Modals Overlay -->
+        <div id="modal-overlay" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden justify-center items-center p-4 transition-opacity duration-300">
+            <div id="modal-container" class="w-full max-w-md max-h-[85vh] bg-[#0f2922] rounded-2xl border border-[var(--accent)]/30 overflow-hidden shadow-2xl flex flex-col transform transition-all duration-300 scale-95 opacity-0">
+                <div class="flex justify-between items-center p-4 border-b border-white/10 bg-[#1a4036]">
+                    <h3 id="modal-title" class="text-lg font-bold text-[var(--accent)]">Title</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+                </div>
+                <div id="modal-body" class="p-4 overflow-y-auto flex-1"></div>
+            </div>
+        </div>
+
+        <!-- Fireworks Canvas -->
+        <canvas id="fireworks-canvas" class="fixed inset-0 pointer-events-none z-[70]"></canvas>
+        
+        <!-- Toast -->
+        <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-[var(--accent)] text-[#0f2922] px-6 py-3 rounded-full font-bold shadow-lg z-[80] opacity-0 transition-all duration-300 translate-y-4 pointer-events-none">
+            Message
+        </div>
+    </div>
+
+<script>
+    /* --- 3D Background Logic (Three.js) --- */
+    const initThreeJS = () => {
+        try {
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x05100e, 0.002);
+
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 50;
+
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // Particles
+            const geometry = new THREE.BufferGeometry();
+            const count = 2000;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+
+            for(let i = 0; i < count * 3; i++) {
+                positions[i] = (Math.random() - 0.5) * 100;
+                colors[i] = Math.random() * 0.5 + 0.5;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 0.5,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+
+            const particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            let mouseX = 0, mouseY = 0;
+            document.addEventListener('mousemove', (e) => {
+                mouseX = (e.clientX - window.innerWidth / 2) * 0.05;
+                mouseY = (e.clientY - window.innerHeight / 2) * 0.05;
+            });
+
+            const animate = () => {
+                requestAnimationFrame(animate);
+                particles.rotation.y += 0.001;
+                particles.rotation.x += 0.0005;
+                
+                camera.position.x += (mouseX - camera.position.x) * 0.05;
+                camera.position.y += (-mouseY - camera.position.y) * 0.05;
+                camera.lookAt(scene.position);
+
+                renderer.render(scene, camera);
+            };
+
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        } catch (e) {
+            console.warn("WebGL не поддерживается, фон останется однотонным.");
+        }
+    };
+
+    /* --- App Logic --- */
+    const API_BASE = "https://api.alquran.cloud/v1";
+    const QURAN_COM_API = "https://api.quran.com/api/v4";
+    
+    let currentVerseKey = null;
+    let currentVerseData = null;
+    let currentRuTafsir = null;
+    let tempSelectedTopics = [];
+    let currentWordData = null;
+    
+    // Secrets
+    let secretClickCount = 0;
+    let secretTimer;
+    let secretUnlocked = false;
+    let currentFileBase64 = null;
+    let currentFileName = '';
+    let currentEditIndex = -1;
+
+    // Drawing
+    let canvas, ctx, drawing = false, lastX, lastY, drawColor = 'black', drawTool = 'pen';
+
+    // Theme
+    let darkTheme = false;
+    let accentColor = '#d4af37';
+
+    // Scroll Handling
+    let lastScrollTop = 0;
+    const topBar = document.getElementById('topBar');
+    const content = document.getElementById('content');
+
+    content.addEventListener('scroll', function() {
+        let scrollTop = content.scrollTop;
+        if (scrollTop > lastScrollTop && scrollTop > 50) {
+            topBar.classList.add('-translate-y-full');
+        } else {
+            topBar.classList.remove('-translate-y-full');
+        }
+        lastScrollTop = scrollTop;
+    });
+
+    const defaultTopics = [
+        "Вера", "Молитва", "Пост", "Закят", "Хадж", "Терпение", "Благодарность", 
+        "Милость", "Прощение", "Рай", "Ад", "Судный день", "Пророки", "Коран", 
+        "Семья", "Родители", "Дети", "Справедливость", "Милостыня", "Покаяние"
+    ];
+
+    const surahNames = {
+        "фатиха":1, "бакара":2, "имран":3, "ниса":4, "маида":5, "анам":6, "аграф":7,
+        "анфаль":8, "тауба":9, "йунус":10, "хид":11, "йусуф":12, "рад":13, "ибрахим":14,
+        "хиджр":15, "нахль":16, "исра":17, "кахф":18, "марьям":19, "таха":20, "анбия":21,
+        "хадж":22, "муминун":23, "нур":24, "фуркан":25, "шуара":26, "намл":27, "касас":28,
+        "анкабут":29, "рум":30, "лукман":31, "саджда":32, "ахзаб":33, "саба":34, "фатыр":35,
+        "ясин":36, "саффат":37, "сад":38, "зумар":39, "мумин":40, "фуссилат":41, "шура":42,
+        "зухруф":43, "духан":44, "джасия":45, "ахкаф":46, "мухаммад":47, "фатх":48,
+        "худжурат":49, "каф":50, "ихлас":112, "фалак":113, "нас":114
+    };
+
+    const topicAyats = {
+        tawhid: ["2:255", "112:1", "20:14", "2:163", "3:18"],
+        shirk: ["4:48", "4:116", "5:72", "9:31", "22:31"]
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+        initThreeJS();
+        initStorage();
+        loadThemeSettings();
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+        showEmptyState();
+        renderSavedWords();
+
+        document.getElementById('results-container').addEventListener('click', function(e) {
+            const wordSpan = e.target.closest('.word-span');
+            if (wordSpan) {
+                const arText = wordSpan.innerText;
+                const meaning = wordSpan.getAttribute('data-meaning');
+                showWordPopup(arText, meaning);
+            }
+        });
+    });
+
+    function initStorage() {
+        if (!localStorage.getItem('quran_topics')) {
+            const topics = defaultTopics.map((name, i) => ({ id: 't_' + i, name: name, keys: [] }));
+            localStorage.setItem('quran_topics', JSON.stringify(topics));
+        }
+        if (!localStorage.getItem('quran_bookmarks')) localStorage.setItem('quran_bookmarks', JSON.stringify([]));
+        if (!localStorage.getItem('quran_saved_words')) localStorage.setItem('quran_saved_words', JSON.stringify([]));
+        if (!localStorage.getItem('secret_notes')) localStorage.setItem('secret_notes', JSON.stringify([]));
+        if (!localStorage.getItem('theme_settings')) localStorage.setItem('theme_settings', JSON.stringify({ dark: false, accent: '#d4af37' }));
+    }
+
+    function loadThemeSettings() {
+        const settings = JSON.parse(localStorage.getItem('theme_settings') || '{}');
+        darkTheme = settings.dark || false;
+        accentColor = settings.accent || '#d4af37';
+        if (darkTheme) document.body.classList.add('dark-theme');
+        document.documentElement.style.setProperty('--accent', accentColor);
+    }
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(el => el.classList.add('hidden'));
+        
+        const index = ['search', 'bookmarks', 'words'].indexOf(tabName);
+        if(index >= 0) document.querySelectorAll('.nav-item')[index].classList.add('active');
+
+        if (tabName === 'search') {
+            document.getElementById('sec-search').classList.remove('hidden');
+            document.getElementById('search-controls').style.display = 'block';
+        } else if (tabName === 'bookmarks') {
+            document.getElementById('sec-bookmarks').classList.remove('hidden');
+            document.getElementById('search-controls').style.display = 'none';
+            renderBookmarks();
+        } else if (tabName === 'words') {
+            document.getElementById('sec-words').classList.remove('hidden');
+            document.getElementById('search-controls').style.display = 'none';
+            renderSavedWords();
+        }
+    }
+
+    function performSearch() {
+        const query = document.getElementById('search-input').value.trim();
+        if (!query) return;
+
+        // --- Команды (исправлены) ---
+        if (query.toLowerCase() === 'коран') { triggerCelebration(); document.getElementById('search-input').value = ''; return; }
+        if (query === '329126') { openModal('theme'); document.getElementById('search-input').value = ''; return; }
+        if (query.toLowerCase() === 'доска') { openModal('draw'); document.getElementById('search-input').value = ''; return; }
+        if (query.toLowerCase() === 'смс') { openModal('sms'); document.getElementById('search-input').value = ''; return; }
+        if (query.toLowerCase() === 'интернет') { openModal('internet'); document.getElementById('search-input').value = ''; return; }
+        
+        // Добавление слова: "текст +"
+        if (query.endsWith(' +')) {
+            addWordFromCommand(query.slice(0, -1).trim());
+            document.getElementById('search-input').value = '';
+            return;
+        }
+        // Удаление темы: "название 0"
+        if (query.endsWith(' 0')) {
+            deleteTopicByName(query.slice(0, -2).trim());
+            document.getElementById('search-input').value = '';
+            return;
+        }
+        // Добавление темы: "+название"
+        if (query.startsWith('+')) {
+            addNewTopicByName(query.slice(1).trim());
+            document.getElementById('search-input').value = '';
+            return;
+        }
+
+        if (query === '1') { showTopicResults(topicAyats.tawhid, 'Аяты о единобожии'); return; }
+        if (query === '2') { showTopicResults(topicAyats.shirk, 'Аяты о многобожии'); return; }
+
+        document.getElementById('results-container').innerHTML = '';
+        document.getElementById('loader').classList.remove('hidden');
+        document.getElementById('empty-search').classList.add('hidden');
+        hidePopup();
+
+        let surahNum = null;
+        let ayahNum = 1;
+
+        if (query.includes(':')) {
+            const parts = query.split(':');
+            surahNum = parseInt(parts[0]);
+            if (parts[1]) ayahNum = parseInt(parts[1]);
+        } else if (!isNaN(query)) {
+            surahNum = parseInt(query);
+        } else {
+            const lowerQ = query.toLowerCase().replace(/[^а-яё0-9-]/g, '');
+            if (surahNames[lowerQ]) surahNum = surahNames[lowerQ];
+        }
+
+        if (surahNum && surahNum >= 1 && surahNum <= 114) {
+            fetchVerseData(surahNum, ayahNum);
+        } else {
+            document.getElementById('loader').classList.add('hidden');
+            showToast('Сура не найдена');
+        }
+    }
+
+    function addWordFromCommand(text) {
+        let words = JSON.parse(localStorage.getItem('quran_saved_words') || '[]');
+        if (words.some(w => w.text === text)) { showToast('Слово уже есть'); return; }
+        words.unshift({ text: text, translation: '', date: Date.now() });
+        localStorage.setItem('quran_saved_words', JSON.stringify(words));
+        renderSavedWords();
+        showToast('Слово добавлено');
+    }
+
+    function showTopicResults(ayatList, title) {
+        document.getElementById('results-container').innerHTML = `<h3 class="text-xl font-bold text-[var(--accent)] mb-4">${title}</h3>`;
+        document.getElementById('loader').classList.add('hidden');
+        document.getElementById('empty-search').classList.add('hidden');
+        ayatList.forEach(key => {
+            const [s, a] = key.split(':').map(Number);
+            fetchVerseDataForTopic(s, a);
+        });
+    }
+
+    function fetchVerseDataForTopic(surah, ayah) {
+        const tafsirId = document.getElementById('tafsir-select').value;
+        const editions = `quran-uthmani,words,${tafsirId},ru.kuliev`;
+        const url = `${API_BASE}/ayah/${surah}:${ayah}/editions/${editions}`;
+        fetch(url).then(res => res.json()).then(data => {
+            if (data.code === 200 && data.data.length === 4) appendVerseCard(data.data);
+        }).catch(() => {});
+    }
+
+    function appendVerseCard(data) {
+        const container = document.getElementById('results-container');
+        const quranText = data[0];
+        const wordsData = data[1];
+        const tafsirData = data[2];
+        const ruTrans = data[3];
+
+        const card = document.createElement('div');
+        card.className = 'glass-card p-4 mb-4 border-l-4 border-[var(--accent)]';
+
+        let arabicHtml = '';
+        let grammarHtml = '';
+        
+        if (wordsData && wordsData.words) {
+            wordsData.words.forEach(w => {
+                if (w.charType === 'word') {
+                    const meaning = w.translation ? w.translation.text : '...';
+                    arabicHtml += `<span class="word-span inline-block px-1 py-0.5 rounded hover:bg-white/10 cursor-pointer text-xl" data-word="${w.text}" data-meaning="${meaning}">${w.text}</span> `;
+                    grammarHtml += `<div class="bg-white/5 p-2 rounded text-center text-xs"><div class="text-[var(--accent)] font-bold text-sm mb-1">${w.text}</div><div class="text-gray-400">${meaning}</div></div>`;
+                } else if (w.charType === 'end') {
+                    arabicHtml += `<span class="text-[var(--accent)] mx-1">۝</span>`;
+                }
+            });
+        } else {
+            arabicHtml = quranText.text;
+        }
+
+        const arabicBlock = `<div class="arabic-text text-right text-3xl leading-loose mb-4 text-white bg-gradient-to-r from-white/5 to-transparent p-4 rounded-xl border border-white/10">${arabicHtml}</div>`;
+
+        const ruText = ruTrans ? ruTrans.text.replace(/^\(\d+\)\s*/, '') : 'Перевод не найден';
+        const transBlock = `<div class="mb-4 bg-white/5 p-3 rounded-lg border-l-2 border-blue-500"><div class="text-xs text-gray-400 uppercase mb-1">Перевод</div><div class="text-gray-200 leading-relaxed">${ruText}</div></div>`;
+
+        let tafsirBlock = '';
+        if (tafsirData && tafsirData.text) {
+            const tName = document.getElementById('tafsir-select').options[document.getElementById('tafsir-select').selectedIndex].text;
+            tafsirBlock = `<div class="mb-4 bg-[var(--accent)]/10 p-3 rounded-lg border border-[var(--accent)]/20"><div class="text-xs text-[var(--accent)] uppercase mb-1">Тафсир (${tName})</div><div class="text-gray-300 text-sm leading-relaxed">${tafsirData.text}</div></div>`;
+        }
+
+        const grammarBlock = `<div class="mb-4"><div class="text-xs text-gray-400 uppercase mb-2">Разбор слов</div><div class="grid grid-cols-3 gap-2">${grammarHtml}</div></div>`;
+
+        const actionsHtml = `<div class="flex gap-2 mt-4 pt-4 border-t border-white/10"><button class="flex-1 bg-white/10 hover:bg-white/20 text-xs py-2 rounded-lg transition" onclick='openModal("topic", "${quranText.surah.number}:${quranText.numberInSurah}")'>🔖 В закладки</button><button class="flex-1 bg-white/10 hover:bg-white/20 text-xs py-2 rounded-lg transition" onclick='shareVerse("${quranText.surah.number}:${quranText.numberInSurah}")'>🔗 Поделиться</button></div>`;
+
+        card.innerHTML = `<div class="flex justify-between items-center mb-3"><span class="font-bold text-[var(--accent)]">${quranText.surah.name}</span><span class="text-xs text-gray-400">Аят ${quranText.numberInSurah}</span></div>` + arabicBlock + transBlock + tafsirBlock + grammarBlock + actionsHtml;
+        container.appendChild(card);
+    }
+
+    function fetchVerseData(surah, ayah) {
+        const tafsirId = document.getElementById('tafsir-select').value;
+        const editions = `quran-uthmani,words,${tafsirId},ru.kuliev`;
+        const url = `${API_BASE}/ayah/${surah}:${ayah}/editions/${editions}`;
+
+        fetch(url).then(res => res.json()).then(data => {
+            document.getElementById('loader').classList.add('hidden');
+            if (data.code === 200 && data.data.length === 4) {
+                currentVerseKey = `${surah}:${ayah}`;
+                currentVerseData = data.data;
+                currentRuTafsir = null;
+                renderVerseCard(data.data);
+                fetchRussianTafsir(surah, ayah);
+            } else {
+                showToast('Аят не найден');
+            }
+        }).catch(err => {
+            document.getElementById('loader').classList.add('hidden');
+            showToast('Ошибка сети');
+        });
+    }
+
+    function fetchRussianTafsir(s, a) {
+        fetch(`${QURAN_COM_API}/tafsirs/by_ayah/${s}:${a}?language=ru`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.tafsirs && data.tafsirs.length > 0) {
+                    currentRuTafsir = data.tafsirs[0].text;
+                    const card = document.querySelector('.glass-card');
+                    if(card) {
+                        let ruBlock = card.querySelector('.ru-tafsir-content');
+                        if(ruBlock) ruBlock.innerText = currentRuTafsir;
+                        else {
+                            const div = document.createElement('div');
+                            div.className = 'mb-4 bg-red-500/10 p-3 rounded-lg border border-red-500/20';
+                            div.innerHTML = `<div class="text-xs text-red-400 uppercase mb-1">RU Тафсир</div><div class="text-gray-300 text-sm leading-relaxed ru-tafsir-content">${currentRuTafsir}</div>`;
+                            card.appendChild(div);
+                        }
+                    }
+                }
+            }).catch(() => {});
+    }
+
+    function changeTafsir() {
+        if (currentVerseKey) {
+            const parts = currentVerseKey.split(':');
+            fetchVerseData(parseInt(parts[0]), parseInt(parts[1]));
+        }
+    }
+
+    function renderVerseCard(data) {
+        const container = document.getElementById('results-container');
+        container.innerHTML = '';
+        appendVerseCard(data);
+    }
+
+    function showEmptyState() {
+        document.getElementById('empty-search').classList.remove('hidden');
+    }
+
+    let popupTimeout;
+    function showWordPopup(ar, ru) {
+        currentWordData = { text: ar, translation: ru };
+        const popup = document.getElementById('word-popup');
+        document.getElementById('popup-ar-text').innerText = ar;
+        document.getElementById('popup-ru-text').innerText = ru !== '...' ? ru : '(перевод отсутствует)';
+        
+        popup.classList.remove('hidden');
+        popup.classList.add('flex');
+        void popup.offsetWidth;
+        popup.classList.remove('opacity-0', 'translate-y-4');
+        
+        if (popupTimeout) clearTimeout(popupTimeout);
+        popupTimeout = setTimeout(() => {
+            hidePopup();
+        }, 5000);
+    }
+
+    function hidePopup() {
+        const popup = document.getElementById('word-popup');
+        popup.classList.add('opacity-0', 'translate-y-4');
+        setTimeout(() => popup.classList.add('hidden'), 300);
+        currentWordData = null;
+    }
+
+    function saveCurrentWord() {
+        if (!currentWordData) return;
+        let words = JSON.parse(localStorage.getItem('quran_saved_words') || '[]');
+        if (words.some(w => w.text === currentWordData.text)) { showToast('Слово уже сохранено'); return; }
+        words.unshift({ text: currentWordData.text, translation: currentWordData.translation, date: Date.now() });
+        localStorage.setItem('quran_saved_words', JSON.stringify(words));
+        showToast('Слово добавлено');
+        hidePopup();
+        renderSavedWords();
+    }
+
+    // --- Modals & Editing ---
+    function openModal(type, data = null) {
+        const overlay = document.getElementById('modal-overlay');
+        const container = document.getElementById('modal-container');
+        const title = document.getElementById('modal-title');
+        const body = document.getElementById('modal-body');
+
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        setTimeout(() => {
+            container.classList.remove('scale-95', 'opacity-0');
+            container.classList.add('scale-100', 'opacity-100');
+        }, 10);
+
+        if (type === 'topic') {
+            title.innerText = 'Выберите темы';
+            currentVerseKey = data;
+            tempSelectedTopics = [];
+            const topics = getTopics();
+            const bookmarks = getBookmarks();
+            const existingBm = bookmarks.find(b => b.key === data);
+            if (existingBm && existingBm.topics) tempSelectedTopics = [...existingBm.topics];
+
+            let html = `<div class="space-y-2">`;
+            topics.forEach(t => {
+                const isChecked = tempSelectedTopics.includes(t.id);
+                html += `<label class="flex items-center justify-between p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+                    <span class="text-sm">${t.name}</span>
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleTempTopic('${t.id}')" class="accent-[var(--accent)] w-5 h-5">
+                </label>`;
+            });
+            html += `</div>
+                <div class="mt-4 flex gap-2">
+                    <input type="text" id="new-topic-input" class="input-gold flex-1 rounded-lg px-3 py-2 text-sm" placeholder="Новая тема...">
+                    <button class="btn-gold px-4 rounded-lg" onclick="addNewTopic()">+</button>
+                </div>
+                <button class="w-full btn-gold mt-4 py-3 rounded-xl" onclick="saveBookmarkWithTopics()">✓ ГОТОВО</button>
+            `;
+            body.innerHTML = html;
+        } else if (type === 'edit_word') {
+            title.innerText = 'Редактировать перевод';
+            const words = JSON.parse(localStorage.getItem('quran_saved_words') || '[]');
+            if (data < 0 || data >= words.length) return;
+            currentEditIndex = data;
+            const word = words[data];
+            body.innerHTML = `
+                <div class="text-center text-3xl text-[var(--accent)] mb-4 font-bold">${word.text}</div>
+                <input type="text" id="edit-word-translation" class="input-gold w-full rounded-lg px-4 py-3 mb-4" placeholder="Введите перевод" value="${word.translation || ''}">
+                <div class="flex gap-2">
+                    <button class="flex-1 btn-gold py-3 rounded-lg" onclick="saveEditedWord()">💾 Сохранить</button>
+                    <button class="flex-1 bg-white/10 py-3 rounded-lg" onclick="searchWordOnline()">🔍 Поиск</button>
+                </div>
+            `;
+        } else if (type === 'secret') {
+            title.innerText = 'Секретный блокнот';
+            if (!secretUnlocked) {
+                body.innerHTML = `
+                    <input type="password" id="secret-password" class="input-gold w-full rounded-lg px-4 py-3 mb-4 text-center text-xl" placeholder="Код">
+                    <button class="w-full btn-gold py-3 rounded-lg" onclick="unlockSecret()">🔓 Войти</button>
+                `;
+            } else {
+                body.innerHTML = `
+                    <textarea id="secret-note-input" class="input-gold w-full rounded-lg px-4 py-3 mb-4 h-24" placeholder="Ваша заметка..."></textarea>
+                    <div class="flex gap-2 mb-4">
+                        <button class="flex-1 bg-white/10 py-2 rounded-lg text-xs" onclick="attachFile()">📎 Файл</button>
+                        <button class="flex-1 bg-white/10 py-2 rounded-lg text-xs" onclick="saveSecretNote()">💾 Сохранить</button>
+                    </div>
+                    <input type="file" id="secret-file" class="hidden" onchange="handleFileSelect(event)">
+                    <div id="secret-attachment" class="text-xs text-[var(--accent)] mb-2"></div>
+                    <div id="secret-notes-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                `;
+                renderSecretNotes();
+            }
+        } else if (type === 'theme') {
+            title.innerText = 'Настройки темы';
+            body.innerHTML = `
+                <div class="flex justify-between items-center p-4 bg-white/5 rounded-lg mb-4">
+                    <span>Тёмная тема</span>
+                    <input type="checkbox" id="dark-theme-toggle" ${darkTheme ? 'checked' : ''} onchange="toggleDarkTheme()" class="accent-[var(--accent)] w-5 h-5">
+                </div>
+                <div class="flex justify-between items-center p-4 bg-white/5 rounded-lg mb-4">
+                    <span>Акцентный цвет</span>
+                    <input type="color" id="accent-color-picker" value="${accentColor}" onchange="changeAccentColor(this.value)" class="w-8 h-8 rounded cursor-pointer bg-transparent border-none">
+                </div>
+                <button class="w-full btn-gold py-3 rounded-lg" onclick="saveThemeSettings()">Сохранить</button>
+            `;
+        } else if (type === 'draw') {
+            title.innerText = 'Доска для рисования';
+            body.innerHTML = `
+                <canvas id="drawing-canvas" class="w-full bg-white rounded-lg mb-4 touch-none" height="300"></canvas>
+                <div class="grid grid-cols-4 gap-2 mb-4">
+                    <button class="bg-black text-white py-2 rounded" onclick="setDrawColor('black')">🖤</button>
+                    <button class="bg-red-600 text-white py-2 rounded" onclick="setDrawColor('red')">🔴</button>
+                    <button class="bg-blue-600 text-white py-2 rounded" onclick="setDrawColor('blue')">🔵</button>
+                    <button class="bg-green-600 text-white py-2 rounded" onclick="setDrawColor('green')">🟢</button>
+                    <button class="bg-white text-black py-2 rounded" onclick="setDrawTool('eraser')">🧽</button>
+                    <button class="bg-[var(--accent)] text-black py-2 rounded" onclick="setDrawTool('pen')">✏️</button>
+                    <button class="bg-red-900 text-white py-2 rounded" onclick="clearCanvas()">🗑</button>
+                    <button class="btn-gold py-2 rounded" onclick="saveDrawing()">💾</button>
+                </div>
+            `;
+            setTimeout(initCanvas, 100);
+        } else if (type === 'sms') {
+            title.innerText = 'Отправить сообщение';
+            body.innerHTML = `
+                <textarea id="sms-text" class="input-gold w-full rounded-lg px-4 py-3 mb-4 h-32" placeholder="Текст сообщения..."></textarea>
+                <div class="grid grid-cols-3 gap-2">
+                    <button class="bg-blue-600 py-3 rounded-lg text-sm" onclick="sendEmail()">📧 Email</button>
+                    <button class="bg-green-600 py-3 rounded-lg text-sm" onclick="sendWhatsApp()">📱 WhatsApp</button>
+                    <button class="bg-sky-500 py-3 rounded-lg text-sm" onclick="sendTelegram()">✈️ Telegram</button>
+                </div>
+            `;
+        } else if (type === 'internet') {
+            title.innerText = 'Интернет-поиск';
+            body.innerHTML = `
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="internet-search-input" class="input-gold flex-1 rounded-lg px-4 py-2" placeholder="Поиск...">
+                    <button class="btn-gold px-4 rounded-lg" onclick="searchInternet()">Найти</button>
+                </div>
+                <iframe id="internet-iframe" src="https://www.google.com/webhp?igu=1" class="w-full h-[50vh] border rounded-lg bg-white"></iframe>
+                <button class="w-full mt-4 bg-white/10 py-2 rounded-lg text-xs" onclick="saveCurrentUrl()">🔖 Сохранить ссылку</button>
+            `;
+        }
+    }
+
+    function closeModal() {
+        const overlay = document.getElementById('modal-overlay');
+        const container = document.getElementById('modal-container');
+        container.classList.remove('scale-100', 'opacity-100');
+        container.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+        }, 300);
+    }
+
+    function toggleTempTopic(id) {
+        const idx = tempSelectedTopics.indexOf(id);
+        if (idx > -1) tempSelectedTopics.splice(idx, 1);
+        else tempSelectedTopics.push(id);
+    }
+
+    function addNewTopic() {
+        const input = document.getElementById('new-topic-input');
+        const name = input.value.trim();
+        if (!name) return;
+        const topics = getTopics();
+        if (topics.some(t => t.name.toLowerCase() === name.toLowerCase())) { showToast('Такая тема уже есть'); return; }
+        const newId = 't_' + Date.now();
+        topics.push({ id: newId, name: name, keys: [] });
+        saveTopics(topics);
+        input.value = '';
+        openModal('topic', currentVerseKey);
+        showToast('Тема создана');
+    }
+
+    function saveBookmarkWithTopics() {
+        if (tempSelectedTopics.length === 0) { showToast('Выберите хотя бы одну тему'); return; }
+        let bookmarks = getBookmarks();
+        let topics = getTopics();
+        const oldBmIndex = bookmarks.findIndex(b => b.key === currentVerseKey);
+        if (oldBmIndex > -1) {
+            const oldBm = bookmarks[oldBmIndex];
+            if (oldBm.topics) {
+                oldBm.topics.forEach(tid => {
+                    const t = topics.find(x => x.id === tid);
+                    if (t) t.keys = t.keys.filter(k => k !== currentVerseKey);
+                });
+            }
+            bookmarks.splice(oldBmIndex, 1);
+        }
+        const [s, a] = currentVerseKey.split(':').map(Number);
+        fetch(`https://api.alquran.cloud/v1/ayah/${currentVerseKey}/ru.kuliev`)
+            .then(res => res.json())
+            .then(data => {
+                const ruText = data.data ? data.data.text : '';
+                const newBm = { key: currentVerseKey, sName: '', aNum: a, ruText: ruText.substring(0, 100) + '...', topics: tempSelectedTopics, date: Date.now() };
+                bookmarks.unshift(newBm);
+                tempSelectedTopics.forEach(tid => {
+                    const t = topics.find(x => x.id === tid);
+                    if (t && !t.keys.includes(currentVerseKey)) t.keys.push(currentVerseKey);
+                });
+                saveBookmarks(bookmarks);
+                saveTopics(topics);
+                closeModal();
+                showToast('Сохранено в закладки');
+            });
+    }
+
+    // --- Saved Words ---
+    function renderSavedWords() {
+        const list = document.getElementById('saved-words-list');
+        const empty = document.getElementById('empty-words');
+        const words = JSON.parse(localStorage.getItem('quran_saved_words') || '[]');
+        if (words.length === 0) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+        empty.classList.add('hidden');
+        list.innerHTML = '';
+        words.forEach((w, index) => {
+            const div = document.createElement('div');
+            div.className = 'glass-card p-3 flex justify-between items-center';
+            div.innerHTML = `
+                <div class="min-w-0">
+                    <div class="text-2xl text-[var(--accent)] font-bold">${w.text}</div>
+                    <div class="text-xs text-gray-400 truncate">${w.translation || '(перевод отсутствует)'}</div>
+                </div>
+                <div class="flex gap-2">
+                    <button class="bg-white/10 p-2 rounded hover:bg-white/20" onclick="openModal('edit_word', ${index})">✏️</button>
+                    <button class="bg-white/10 p-2 rounded hover:bg-white/20" onclick="window.open('https://www.google.com/search?q=${encodeURIComponent(w.text + ' перевод')}', '_blank')">🔍</button>
+                    <button class="bg-red-500/20 p-2 rounded hover:bg-red-500/40 text-red-400" onclick="deleteSavedWord(${index})">✕</button>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function deleteSavedWord(index) {
+        let words = JSON.parse(localStorage.getItem('quran_saved_words') || '[]');
+        words.splice(index, 1);
+        localStorage.setItem('quran_saved_words', JSON.stringify(words));
+        renderSavedWords();
+        showToast('Слово удалено');
+    }
+
+    function openEditWordModal(index) { openModal('edit_word', index); }
+    function closeEditWordModal() { closeModal(); }
+    function saveEditedWord() {
+        if (currentEditIndex === -1) return;
+        const newTranslation = document.getElementById('edit-word-translation').value.trim();
+        let words = JSON.parse(localStorage.getItem('quran_saved_words') || '[]');
+        if (currentEditIndex < words.length) {
+            words[currentEditIndex].translation = newTranslation || '(перевод отсутствует)';
+            localStorage.setItem('quran_saved_words', JSON.stringify(words));
+            renderSavedWords();
+            closeModal();
+            showToast('Перевод сохранён');
+        }
+    }
+    function searchWordOnline() {
+        const arabicWord = document.querySelector('#modal-body .text-3xl').innerText;
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(arabicWord + ' перевод на русский')}`, '_blank');
+    }
+
+    // --- Bookmarks ---
+    function renderBookmarks() {
+        const list = document.getElementById('bookmarks-list');
+        const filter = document.getElementById('bm-filter');
+        const bookmarks = getBookmarks();
+        const topics = getTopics();
+        
+        filter.innerHTML = `<span class="bg-[var(--accent)] text-[#0f2922] px-3 py-1 rounded-full text-xs font-bold cursor-pointer" onclick="filterBookmarks(null, this)">Все</span>`;
+        topics.forEach(t => {
+            if (t.keys.length > 0) {
+                filter.innerHTML += `<span class="bg-white/10 text-gray-300 px-3 py-1 rounded-full text-xs cursor-pointer hover:bg-white/20" onclick="filterBookmarks('${t.id}', this)">${t.name} (${t.keys.length})</span>`;
+            }
+        });
+
+        if (bookmarks.length === 0) {
+            list.innerHTML = `<div class="text-center text-gray-500 py-10">Закладок пока нет</div>`;
+            return;
+        }
+        list.innerHTML = '';
+        bookmarks.forEach(bm => {
+            const div = document.createElement('div');
+            div.className = 'glass-card p-4 border-l-4 border-[var(--accent)]';
+            let tagsHtml = '';
+            bm.topics.forEach(tid => {
+                const t = topics.find(x => x.id === tid);
+                if (t) tagsHtml += `<span class="text-[10px] bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded-full mr-1">${t.name}</span>`;
+            });
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <span class="font-bold text-white">${bm.key}</span>
+                    <span class="text-xs text-gray-500">Аят ${bm.aNum}</span>
+                </div>
+                <div class="text-sm text-gray-300 mb-3 line-clamp-2">${bm.ruText || ''}</div>
+                <div class="mb-3">${tagsHtml}</div>
+                <div class="flex gap-2">
+                    <button class="flex-1 bg-white/10 hover:bg-white/20 text-xs py-2 rounded transition" onclick="loadVerse('${bm.key}')">Открыть</button>
+                    <button class="flex-1 bg-red-500/20 hover:bg-red-500/40 text-xs py-2 rounded transition text-red-400" onclick="deleteBookmark('${bm.key}')">Удалить</button>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function filterBookmarks(topicId, el) {
+        document.querySelectorAll('#bm-filter span').forEach(c => {
+            c.classList.remove('bg-[var(--accent)]', 'text-[#0f2922]');
+            c.classList.add('bg-white/10', 'text-gray-300');
+        });
+        el.classList.remove('bg-white/10', 'text-gray-300');
+        el.classList.add('bg-[var(--accent)]', 'text-[#0f2922]');
+        
+        const list = document.getElementById('bookmarks-list');
+        const bookmarks = getBookmarks();
+        list.innerHTML = '';
+        const filtered = topicId ? bookmarks.filter(b => b.topics.includes(topicId)) : bookmarks;
+
+        if (filtered.length === 0) {
+            list.innerHTML = `<div class="text-center text-gray-500 py-10">Нет аятов в этой теме</div>`;
+            return;
+        }
+        const topics = getTopics();
+        filtered.forEach(bm => {
+            const div = document.createElement('div');
+            div.className = 'glass-card p-4 border-l-4 border-[var(--accent)] mb-3';
+            let tagsHtml = '';
+            bm.topics.forEach(tid => {
+                const t = topics.find(x => x.id === tid);
+                if (t) tagsHtml += `<span class="text-[10px] bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded-full mr-1">${t.name}</span>`;
+            });
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-2"><span class="font-bold text-white">${bm.key}</span><span class="text-xs text-gray-500">Аят ${bm.aNum}</span></div>
+                <div class="text-sm text-gray-300 mb-3 line-clamp-2">${bm.ruText || ''}</div>
+                <div class="mb-3">${tagsHtml}</div>
+                <div class="flex gap-2">
+                    <button class="flex-1 bg-white/10 hover:bg-white/20 text-xs py-2 rounded transition" onclick="loadVerse('${bm.key}')">Открыть</button>
+                    <button class="flex-1 bg-red-500/20 hover:bg-red-500/40 text-xs py-2 rounded transition text-red-400" onclick="deleteBookmark('${bm.key}')">Удалить</button>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function deleteBookmark(key) {
+        if(!confirm('Удалить этот аят из закладок?')) return;
+        let bookmarks = getBookmarks();
+        let topics = getTopics();
+        const bm = bookmarks.find(b => b.key === key);
+        if (bm && bm.topics) {
+            bm.topics.forEach(tid => {
+                const t = topics.find(x => x.id === tid);
+                if (t) t.keys = t.keys.filter(k => k !== key);
+            });
+        }
+        bookmarks = bookmarks.filter(b => b.key !== key);
+        saveBookmarks(bookmarks);
+        saveTopics(topics);
+        renderBookmarks();
+        showToast('Удалено');
+    }
+
+    function loadVerse(key) {
+        document.getElementById('search-input').value = key;
+        switchTab('search');
+        performSearch();
+    }
+
+    function shareVerse(key) {
+        if (!key) key = currentVerseKey;
+        fetch(`https://api.alquran.cloud/v1/ayah/${key}/editions/quran-uthmani,ru.kuliev`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.code === 200 && data.data.length === 2) {
+                    const arabicText = data.data[0].text;
+                    const russianText = data.data[1].text;
+                    const surahName = data.data[0].surah.name;
+                    const ayahNum = data.data[0].numberInSurah;
+                    const shareText = `📖 ${surahName}, Аят ${ayahNum}\n\nAR ${arabicText}\n\nRU ${russianText}\n\nНур аль-Коран`;
+                    if (navigator.share) {
+                        navigator.share({ title: 'Нур аль-Коран', text: shareText });
+                    } else {
+                        navigator.clipboard.writeText(shareText);
+                        showToast('Текст скопирован');
+                    }
+                }
+            });
+    }
+
+    // --- Utilities ---
+    function getTopics() { return JSON.parse(localStorage.getItem('quran_topics')); }
+    function saveTopics(t) { localStorage.setItem('quran_topics', JSON.stringify(t)); }
+    function getBookmarks() { return JSON.parse(localStorage.getItem('quran_bookmarks')); }
+    function saveBookmarks(b) { localStorage.setItem('quran_bookmarks', JSON.stringify(b)); }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.classList.remove('opacity-0', 'translate-y-4');
+        setTimeout(() => t.classList.add('opacity-0', 'translate-y-4'), 2500);
+    }
+
+    function deleteTopicByName(name) {
+        let topics = getTopics();
+        const initialLen = topics.length;
+        topics = topics.filter(t => t.name.toLowerCase() !== name.toLowerCase());
+        if (topics.length < initialLen) {
+            saveTopics(topics);
+            showToast(`Тема "${name}" удалена`);
+            document.getElementById('search-input').value = '';
+        } else {
+            showToast('Тема не найдена');
+        }
+    }
+
+    function addNewTopicByName(name) {
+        let topics = getTopics();
+        if (topics.some(t => t.name.toLowerCase() === name.toLowerCase())) { showToast('Такая тема уже есть'); return; }
+        const newId = 't_' + Date.now();
+        topics.push({ id: newId, name: name, keys: [] });
+        saveTopics(topics);
+        showToast(`Тема "${name}" создана`);
+        document.getElementById('search-input').value = '';
+    }
+
+    // --- Celebration & Secrets ---
+    function triggerCelebration() {
+        startFireworks();
+        const modal = document.getElementById('modal-overlay');
+        const container = document.getElementById('modal-container');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        container.innerHTML = `
+            <div class="w-full max-w-md p-8 text-center bg-gradient-to-br from-[#0f2922] to-[#1a4036] rounded-2xl border border-[var(--accent)] shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] opacity-10"></div>
+                <div class="relative z-10">
+                    <h2 class="text-4xl font-bold text-[var(--accent)] mb-6 animate-pulse">🎉 Поздравляем! 🎉</h2>
+                    <div class="text-6xl mb-6">🕋</div>
+                    <div class="text-lg text-gray-200 space-y-2 font-serif leading-relaxed">
+                        Желаю вам:<br>
+                        ✨ <b>Добра</b> и <b>Долголетия</b><br>
+                        👨‍👩‍👧‍👦 <b>Четыре Жены</b> (Благословенной Семьи)<br>
+                        🤲 <b>Богобоязненных Детей</b><br>
+                        💰 <b>Изобилия</b> (Бараката)
+                    </div>
+                    <button class="mt-8 btn-gold px-8 py-3 rounded-full" onclick="closeModal(); stopFireworks();">Аминь</button>
+                </div>
+            </div>
+        `;
+        container.classList.remove('scale-95', 'opacity-0');
+        container.classList.add('scale-100', 'opacity-100');
+        setTimeout(() => stopFireworks(), 5000);
+    }
+
+    function handleSecretFooterClick() {
+        secretClickCount++;
+        if (secretClickCount === 3) {
+            openModal('secret');
+            secretClickCount = 0;
+        }
+        clearTimeout(secretTimer);
+        secretTimer = setTimeout(() => secretClickCount = 0, 1000);
+    }
+
+    function unlockSecret() {
+        const pwd = document.getElementById('secret-password').value;
+        if (pwd === '1984') {
+            secretUnlocked = true;
+            openModal('secret');
+        } else {
+            showToast('Неверный код');
+        }
+    }
+
+    function attachFile() { document.getElementById('secret-file').click(); }
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        currentFileName = file.name;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            currentFileBase64 = e.target.result;
+            document.getElementById('secret-attachment').innerHTML = `📎 ${currentFileName}`;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function saveSecretNote() {
+        const text = document.getElementById('secret-note-input').value.trim();
+        if (!text && !currentFileBase64) { showToast('Введите текст или прикрепите файл'); return; }
+        let notes = JSON.parse(localStorage.getItem('secret_notes') || '[]');
+        notes.unshift({ text: text, file: currentFileBase64 || null, fileName: currentFileName || null, date: Date.now() });
+        localStorage.setItem('secret_notes', JSON.stringify(notes));
+        document.getElementById('secret-note-input').value = '';
+        currentFileBase64 = null;
+        currentFileName = '';
+        document.getElementById('secret-attachment').innerHTML = '';
+        renderSecretNotes();
+        showToast('Сохранено');
+    }
+
+    function renderSecretNotes() {
+        const list = document.getElementById('secret-notes-list');
+        const notes = JSON.parse(localStorage.getItem('secret_notes') || '[]');
+        if (notes.length === 0) { list.innerHTML = '<div class="text-center text-gray-500 text-sm">Нет заметок</div>'; return; }
+        list.innerHTML = '';
+        notes.forEach((note, idx) => {
+            const div = document.createElement('div');
+            div.className = 'bg-white/5 p-3 rounded-lg border border-white/10 text-sm';
+            let fileHtml = note.file ? `<div class="mt-2 text-[var(--accent)] text-xs truncate"><a href="${note.file}" download="${note.fileName}" class="hover:underline">📎 ${note.fileName}</a></div>` : '';
+            div.innerHTML = `<div class="text-gray-300 mb-1">${note.text || ''}</div>${fileHtml}<div class="text-xs text-gray-600 mt-2 text-right">${new Date(note.date).toLocaleString()}</div><button class="text-red-500 text-xs mt-2 hover:underline" onclick="deleteSecretNote(${idx})">Удалить</button>`;
+            list.appendChild(div);
+        });
+    }
+
+    function deleteSecretNote(index) {
+        let notes = JSON.parse(localStorage.getItem('secret_notes') || '[]');
+        notes.splice(index, 1);
+        localStorage.setItem('secret_notes', JSON.stringify(notes));
+        renderSecretNotes();
+        showToast('Заметка удалена');
+    }
+
+    // --- Fireworks ---
+    let fwCanvas, fwCtx, fwParticles = [], fwAnimationId;
+    function startFireworks() {
+        fwCanvas = document.getElementById('fireworks-canvas');
+        fwCanvas.width = window.innerWidth;
+        fwCanvas.height = window.innerHeight;
+        fwCtx = fwCanvas.getContext('2d');
+        fwParticles = [];
+        animateFireworks();
+        for(let i=0; i<5; i++) setTimeout(() => createFirework(), i * 300);
+        setInterval(() => { if(document.getElementById('modal-overlay').classList.contains('flex')) createFirework(); }, 800);
+    }
+    function stopFireworks() {
+        if (fwAnimationId) cancelAnimationFrame(fwAnimationId);
+        if (fwCtx) fwCtx.clearRect(0, 0, fwCanvas.width, fwCanvas.height);
+        fwParticles = [];
+    }
+    function createFirework() {
+        if (!fwCanvas) return;
+        const x = Math.random() * fwCanvas.width;
+        const y = Math.random() * (fwCanvas.height / 2);
+        const color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+        for (let i = 0; i < 50; i++) {
+            fwParticles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, alpha: 1, color: color });
+        }
+    }
+    function animateFireworks() {
+        if (!fwCtx) return;
+        fwCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        fwCtx.fillRect(0, 0, fwCanvas.width, fwCanvas.height);
+        fwParticles.forEach((p, index) => {
+            p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.alpha -= 0.01;
+            fwCtx.globalAlpha = p.alpha;
+            fwCtx.fillStyle = p.color;
+            fwCtx.beginPath();
+            fwCtx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            fwCtx.fill();
+            if (p.alpha <= 0) fwParticles.splice(index, 1);
+        });
+        fwAnimationId = requestAnimationFrame(animateFireworks);
+    }
+
+    // --- Theme & Tools ---
+    function toggleDarkTheme() { darkTheme = !darkTheme; document.body.classList.toggle('dark-theme'); }
+    function changeAccentColor(color) { accentColor = color; document.documentElement.style.setProperty('--accent', accentColor); }
+    function saveThemeSettings() { localStorage.setItem('theme_settings', JSON.stringify({ dark: darkTheme, accent: accentColor })); closeModal(); showToast('Тема сохранена'); }
+
+    // --- Drawing ---
+    function initCanvas() {
+        canvas = document.getElementById('drawing-canvas');
+        ctx = canvas.getContext('2d');
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = drawColor;
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+    }
+    function startDrawing(e) { e.preventDefault(); drawing = true; const pos = getCoordinates(e); lastX = pos.x; lastY = pos.y; }
+    function draw(e) {
+        e.preventDefault();
+        if (!drawing) return;
+        const pos = getCoordinates(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.strokeStyle = drawTool === 'eraser' ? '#ffffff' : drawColor;
+        ctx.stroke();
+        lastX = pos.x; lastY = pos.y;
+    }
+    function stopDrawing() { drawing = false; }
+    function getCoordinates(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        if (e.touches) return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
+        return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+    }
+    function setDrawColor(color) { drawColor = color; drawTool = 'pen'; }
+    function setDrawTool(tool) { drawTool = tool; }
+    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+    function saveDrawing() {
+        const dataURL = canvas.toDataURL('image/png');
+        let notes = JSON.parse(localStorage.getItem('secret_notes') || '[]');
+        notes.unshift({ text: '📝 Рисунок', file: dataURL, fileName: 'drawing.png', date: Date.now() });
+        localStorage.setItem('secret_notes', JSON.stringify(notes));
+        showToast('Рисунок сохранён в секретные заметки');
+        closeModal();
+    }
+
+    // --- Internet & SMS ---
+    function sendEmail() { const text = document.getElementById('sms-text').value.trim(); if (!text) { showToast('Введите текст'); return; } window.location.href = `mailto:?subject=Сообщение из Нур аль-Коран&body=${encodeURIComponent(text)}`; }
+    function sendWhatsApp() { const text = document.getElementById('sms-text').value.trim(); if (!text) { showToast('Введите текст'); return; } window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); }
+    function sendTelegram() { const text = document.getElementById('sms-text').value.trim(); if (!text) { showToast('Введите текст'); return; } window.open(`https://t.me/share/url?url=${encodeURIComponent(text)}`, '_blank'); }
+    function searchInternet() { const query = document.getElementById('internet-search-input').value.trim(); if (!query) return; const iframe = document.getElementById('internet-iframe'); iframe.src = `https://www.google.com/search?igu=1&q=${encodeURIComponent(query)}`; }
+    function saveCurrentUrl() {
+        const iframe = document.getElementById('internet-iframe');
+        try {
+            const url = iframe.contentWindow.location.href;
+            let notes = JSON.parse(localStorage.getItem('secret_notes') || '[]');
+            notes.unshift({ text: '🔗 ' + url, file: null, fileName: null, date: Date.now() });
+            localStorage.setItem('secret_notes', JSON.stringify(notes));
+            showToast('Ссылка сохранена');
+        } catch (e) { showToast('Не удалось получить ссылку'); }
+    }
+</script>
+</body>
+</html>
